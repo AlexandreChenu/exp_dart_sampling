@@ -76,7 +76,7 @@ using namespace sferes::gen::dnn;
 struct Params {
     struct nov {
         SFERES_CONST size_t deep = 3;
-        SFERES_CONST double l = 0.07; // according to hand tuning made on the 2D arm simulation
+        SFERES_CONST double l = 0.1; // according to hand tuning made on the 2D arm simulation
         SFERES_CONST double k = 15; // TODO right value?
         SFERES_CONST double eps = 0.1;// TODO right value??
     };
@@ -87,7 +87,7 @@ struct Params {
         SFERES_CONST size_t init_size = 1000;
         // size of a batch
         SFERES_CONST size_t size = 100;
-        SFERES_CONST size_t nb_gen = 25001;
+        SFERES_CONST size_t nb_gen = 4001;
         SFERES_CONST size_t dump_period = 500;
     };
 
@@ -136,6 +136,12 @@ struct Params {
         SFERES_CONST size_t behav_dim = 3; //zones + target
         SFERES_ARRAY(size_t, grid_shape, 100, 100);
     };
+
+    struct sample {
+
+      SFERES_CONST size_t n_samples = 230; //nombre d'environements aléatoirement générés
+      //Eigen::MatrixXd samples = cluster_sampling(100);
+  };
 };
 
 //template<typename fit_t>

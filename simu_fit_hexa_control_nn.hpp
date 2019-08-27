@@ -33,8 +33,8 @@ namespace global{
 void load_and_init_robot()
 {
   std::cout<<"INIT Robot"<<std::endl;
-  global::global_robot = std::make_shared<robot_dart::Robot>("exp/exp_dart_simple/ressources/hexapod_v2.urdf");
-  //global::global_robot = std::make_shared<robot_dart::Robot>("exp/ressources/hexapod_v2.urdf");
+  //global::global_robot = std::make_shared<robot_dart::Robot>("exp/exp_dart_simple/ressources/hexapod_v2.urdf");
+  global::global_robot = std::make_shared<robot_dart::Robot>("exp/ressources/hexapod_v2.urdf");
   global::global_robot->set_position_enforced(true);
   //global::global_robot->set_position_enforced(true);
   //global_robot->skeleton()->setPosition(1,100* M_PI / 2.0);
@@ -57,73 +57,38 @@ public:
     void eval(Indiv& ind)
   {
     //INITIALISATION
-
+    Eigen::Vector3d target;
+    //target = {8.0, 0.0,0.0}; 
     _body_contact = false;
     _on_back = false;
     double _arrival_angle = 0;
-    std::vector<double> fits(Params::sample::n_samples);
-    Eigen::MatrixXd zones_exp(Params::sample::n_samples, 3);
-    std::vector<double> bd_medians(3);
 
-    std::ifstream samples_stream;
-    samples_stream.open("/git/sferes2/exp/exp_sampling/samples_cart_dart.txt");
-
-      if (!samples_stream) {
-        std::cout << "Unable to open file samples_cart_dart.txt";
-        exit(1);   // call system to stop
-      }
+    target = {-1.0, 1.0 ,0.0};	
    
-    for (int s = 0; s < Params::sample::n_samples ; ++s){
 
-      double out;
-      Eigen::Vector3d target;
+    simulate(target, ind); //simulate robot behavior for given nn (ind) and target
 
-      samples_stream >> out; //sample reading has been tested
-      target[0] = out;
-      //std::cout << "target x: " << target[0] << std::endl;
-      samples_stream >> out; 
-      target[1] = out;
+    std::vector<double> res(4);
+    res = get_fit_bd(_traj, target);
 
-      simulate(target, ind); //simulate robot behavior for given nn (ind) and target
 
-      std::vector<double> res(4);
-      res = get_fit_bd(_traj, target);
-
-      // descriptor is the final position of the robot. 
-      std::vector<double> desc(3);
-   
-      desc[0] = res[1];
-      desc[1] = res[2];
-      desc[2] = res[3];
-  	 
-  	  fits[s] = res[0];
-      zones_exp(s,0) = desc[0];
-      zones_exp(s,1) = desc[1];
-      zones_exp(s,2) = desc[2];
-
-    }
-
-    samples_stream.close(); //close file
-
-    double fit_median;
-    std::vector<double> bd_medians(3);
-
-    fit_median = median(fits);
-
-    int index = geometric_median(zones_exp);
-    bd_medians[0] = zones_exp(index,0); //geometric median is approximated 
-    bd_medians[1] = zones_exp(index,1); 
-    bd_medians[2] = zones_exp(index,2);
-
-    this->_value = fit_median;
-    this->set_desc(bd_medians);
+    // descriptor is the final position of the robot. 
+    std::vector<double> desc(3);
+ 
+    desc[0] = res[1];
+    desc[1] = res[2];
+    desc[2] = res[3];
+	 
+	this ->_value = res[0];	  
+    this->set_desc(desc); //save behavior descriptor
 
     if(_body_contact || _on_back){
-      std::cout << "body contact is " << _body_contact << " and on back is " << _on_back << std::endl; 
-      this->_dead=true; //if something is wrong, we kill this solution.
-    } 
+
+     std::cout << "body contact is " << _body_contact << " and on back is " << _on_back << std::endl; 
+	this->_dead=true; //if something is wrong, we kill this solution.
+   } 
     else{
-      _not_dead ++;}
+	_not_dead ++;}
 
   }
   
@@ -156,12 +121,15 @@ public:
     simu.add_descriptor(std::make_shared<robot_dart::descriptor::HexaDescriptor>(robot_dart::descriptor::HexaDescriptor(simu)));
     simu.add_descriptor(std::make_shared<robot_dart::descriptor::DutyCycle>(robot_dart::descriptor::DutyCycle(simu)));
     
-    simu.run(5);
+    simu.run(4);
 
     _body_contact = std::static_pointer_cast<robot_dart::descriptor::DutyCycle>(simu.descriptor(1))->body_contact(); //should be descriptor 1
     _traj = std::static_pointer_cast<robot_dart::descriptor::HexaDescriptor>(simu.descriptor(0))->traj;
     _on_back = std::static_pointer_cast<robot_dart::descriptor::HexaDescriptor>(simu.descriptor(0))->on_back();
     g_robot.reset();
+
+   for (int i = 0; i< _traj.size(); i++)
+	std::cout <<"pos" << _traj[i][0] << " " << _traj[i][1] << std::endl;
 
      }
 
@@ -183,7 +151,7 @@ public:
     for (int i = 0; i < size; i++)
       {	
 
-	//std::cout << "traj " << i << " : " << _traj[i][0] << " - " << _traj[i][1] << std::endl;
+	std::cout << "pos" << _traj[i][0] << " " << _traj[i][1] << std::endl;
         //std::cout << "fit" << std::endl;
         if (sqrt((target[0]-_traj[i][0])*(target[0]-_traj[i][0]) + (target[1]-_traj[i][1])*(target[1]-_traj[i][1])) < 0.02){
           dist -= sqrt((target[0]-_traj[i][0])*(target[0]-_traj[i][0]) + (target[1]-_traj[i][1])*(target[1]-_traj[i][1]));}
@@ -309,51 +277,6 @@ public:
           }
       }
   }
-
-    double median(std::vector<double> &v)
-  {
-    size_t n = v.size() / 2;
-    std::nth_element(v.begin(), v.begin()+n, v.end());
-    return v[n];
-  }
-
-  double geometric_median (Eigen::MatrixXd samples){
-    
-    int n_samples = Params::sample::n_samples;
-    //int dim = 3;
-    Eigen::MatrixXd distances(n_samples,n_samples);
-    std::vector<double> sum_dists(n_samples);
-    
-    for (int i=0; i<n_samples; i++){ //get all distances
-        //std::cout << "debug i: " << i << std::endl;
-        for (int j = i; j < n_samples; j++){
-            //std::cout << "debug j: " << j << std::endl;
-            distances(i,j) = sqrt((samples(i,0)-samples(j,0))*(samples(i,0)-samples(j,0)) + (samples(i,1)-samples(j,1))*(samples(i,1)-samples(j,1)) +(samples(i,2)-samples(j,2))*(samples(i,2)-samples(j,2)));
-            //std::cout << "debug distance: " << distances(i,j) << std::endl;
-            distances(j,i) = distances(i,j);}
-    }
-    //std::cout << "out distances: " << distances << std::endl;
-    
-    for (int row=0; row<n_samples; row++){ //compute sum of distances
-        double sum =0;
-        for (int col=0; col<n_samples; col++){
-            sum += distances(row,col);
-        }
-        sum_dists[row] = sum;
-    }
-    //std::cout << "out sum distances: " << sum_dists[0] << " " << sum_dists[1] << " " << sum_dists[2] << " " << sum_dists[3] << std::endl;
-    
-    double min_sample;
-    min_sample = *std::min_element(sum_dists.begin(), sum_dists.end()); //get minimal distance
-    
-    int ind = 0;
-    while(sum_dists[ind] != min_sample){
-        ind+=1;
-    }
-    //std::cout << "indice: " << ind << std::endl;
-    
-    return ind;
-}
 
   
 private:
